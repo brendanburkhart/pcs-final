@@ -1,0 +1,12 @@
+[package]
+name = "csifish"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lazy_static = "1.4.0"
+num-bigint = { version = "0.4.4", features = ["std", "rand"] }
+num-modular = { version = "0.6.1", features = ["num-bigint", "num-integer", "num-traits"] }
+sha3 = "0.10.8"
