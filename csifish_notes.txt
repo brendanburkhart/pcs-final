@@ -1,0 +1,47 @@
+De Feo, Mathematics of Isogeny Based Cryptography
+https://arxiv.org/pdf/1711.04062.pdf
+
+P. Stevenhagen, Number Rings,
+https://websites.math.leidenuniv.nl/algebra/ant.pdf
+
+montgomery modular arithmetic
+montgomery ladder: https://cr.yp.to/bib/2003/joye-ladder.pdf
+montgomery elliptic x-only arithmetic: https://eprint.iacr.org/2017/212.pdf
+
+reference for 70% of security bugs are memory bugs
+
+SeaSign: slow (single message signing takes 2 minutes)
+SIKE: based on SIDH, insecure
+CSIDH: hopefully secure
+CSI-FiSH: fiat-shamir on CSIDH, hopefully secure
+          record-breaking computation required, infeasible to scale security much farther
+SCALLOP: https://link.springer.com/chapter/10.1007/978-3-031-31368-4_13
+         hopes to replace CSIDH with easier to compute/control class-group structure to allow scaling of CSI-FiSH style signature schemes
+         single class-group action computation takes 35 seconds, so entirely infeasible to use for now
+
+CSIDH: https://csidh.isogeny.org/csidh-20181118.pdf
+       suggests x-only Montgomery arithmetic
+
+group-action, quantum equivalence of dlog and CDH:
+https://link.springer.com/chapter/10.1007/978-3-031-22963-3_1
+
+Hashing:
+- SHAKE256 - very slow on purpose
+
+Finite field:
+- efficient fundamental field operations mod p
+- random sampling
+- test suite
+
+(Montgomery) Elliptic curve required operations:
+- point inverse
+- point doubling, addition, subtraction
+- multiplication-by-m map
+- random sampling (for key generation and supersingularity verification)
+- isogeny action given ideal exponent vector
+- velu's formulae
+
+Reduction-mod-lattice
+- class action from Z_n to vector of ideal exponents
+
+For Merkle-variant, also need Merkle-tree implementation
