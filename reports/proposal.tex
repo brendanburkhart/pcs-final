@@ -1,0 +1,58 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+
+\usepackage{fullpage}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{circuitikz}
+\usetikzlibrary{positioning,arrows.meta}
+
+% Algorithm configuration
+\usepackage[plain]{algorithm}
+\usepackage{algorithmicx}
+\usepackage[]{algpseudocode}
+
+\usepackage{changepage}
+\usepackage{framed}
+
+\usepackage{cleveref}
+\usepackage[
+    backend=biber,
+]{biblatex}
+
+\addbibresource{references.bib}
+
+\parskip=1em
+\parindent=0em
+
+\begin{document}
+\begin{flushleft}
+
+\section*{Project: Implementing a Post-Quantum Signature Library}
+Group Members: Vivek Chari, Brendan Burkhart, Cameron Kolisko
+
+\section*{Introduction}
+
+In 1994, Peter Shor discovered polynomial-time algorithms to solve factoring
+or discrete logarithm problems on a hypothetical quantum computer \cite{ShorBackground}. These discoveries provide a theoretical way to quickly and efficiently break several widely used encrypted key exchange methods, including RSA \cite{ShorRSABreak} and Diffie-Hellman \cite{ShorBackground}. If quantum computers with greater computational power are built in the future, current methods of key exchange would no longer be cryptography secure. To neutralize this threat, we must implement new cryptography that is cryptography secure against adversaries with access to both powerful quantum and traditional computers.
+
+Most post-quantum cryptography is based on lattice problems, multivariate equations, error-correcting codes, hash functions, or isogenies. Current schemes based on error-correcting codes have very large key sizes, and attempts to create schemes with smaller key sizes have so far introduced significant weaknesses \cite{CodeBasedPQ}. Hash-function signature schemes typically are \emph{stateful}, meaning all issued signatures need to be kept track of, although some recent work has largely overcome this limitation \cite{sphincs}. Isogeny-based cryptography is relatively new field that shows significant promise in creating secure and efficient cryptosystems \cite{csifish}, and is what we have chosen to focus on for our project.
+
+One of the major isogeny-based schemes was supersingular isogeny Diffie-Hellman Key Exchange, known as SIDH or SIKE, which was one of the main contenders for NIST's post-quantum cryptography challenge. However, a key recovery attack has been demonstrated that is capable of breaking SIKE in  a matter of hours on a classical computer \cite{SIDHKeyRecovery}. Despite this, many other isogeny-based schemes are not vulnerable to the class of attacks used on SIDH, and remain promising. In particular, the CSIDH key-exchange protocol and related signature schemes are still believed to be secure \cite{CSIFiShStillSecure}. We have chosen to research and implement CSI-FiSh \cite{csifish}, a signature scheme related to CSIDH, for our project.
+
+\section*{Goals and Deliverables}
+
+Our first steps for this project (which we have already begun) will be to conduct background reading into elliptic curves, isogenies, and lattices, in particular we want to read portions of \cite{EllipticCurveLectures} for a general introduction to elliptic curves, \cite{IsogenyIntro} for isogenies and lattices, and then \cite{csifish} for the mathematics of the CSI-FiSh scheme.
+
+Once that is complete, we will begin implementing the CSI-FiSh signature scheme as a library, as well as a small command-line tool for signing files. We note that an implementation of CSI-FiSh already exists \cite{CSIFiShImplementation}, however it is written in C and a buffer overflow has already been demonstrated in the implementation \cite{CSIFiShBufferOverflow}. As such, we believe there is value in a new implementation of CSI-FiSh in a memory-safe language, so we have chosen to write our implementation in Rust. We also hope to improve upon the speed of the existing CSI-FiSh implementation, although this may be difficult.
+
+\printbibliography
+
+\end{flushleft}
+\end{document}

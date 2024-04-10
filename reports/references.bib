@@ -1,0 +1,144 @@
+@InProceedings{csifish,
+    author="Beullens, Ward
+    and Kleinjung, Thorsten
+    and Vercauteren, Frederik",
+    editor="Galbraith, Steven D.
+    and Moriai, Shiho",
+    title="CSI-FiSh: Efficient Isogeny Based Signatures Through Class Group Computations",
+    booktitle="Advances in Cryptology -- ASIACRYPT 2019",
+    year="2019",
+    publisher="Springer International Publishing",
+    address="Cham",
+    pages="227--247",
+    abstract="In this paper we report on a new record class group computation of an imaginary quadratic field having 154-digit discriminant, surpassing the previous record of 130 digits. This class group is central to the CSIDH-512 isogeny based cryptosystem, and knowing the class group structure and relation lattice implies efficient uniform sampling and a canonical representation of its elements. Both operations were impossible before and allow us to instantiate an isogeny based signature scheme first sketched by Stolbunov. We further optimize the scheme using multiple public keys and Merkle trees, following an idea by De Feo and Galbraith. We also show that including quadratic twists allows to cut the public key size in half for free. Optimizing for signature size, our implementation takes 390 ms to sign/verify and results in signatures of 263 bytes, at the expense of a large public key. This is 300 times faster and over 3 times smaller than an optimized version of SeaSign for the same parameter set. Optimizing for public key and signature size combined, results in a total size of 1468 bytes, which is smaller than any other post-quantum signature scheme at the 128-bit security level.",
+    isbn="978-3-030-34578-5"
+}
+
+@misc{SIDHKeyRecovery,
+      author = {Wouter Castryck and Thomas Decru},
+      title = {An efficient key recovery attack on SIDH},
+      howpublished = {Cryptology ePrint Archive, Paper 2022/975},
+      year = {2022},
+      note = {\url{https://eprint.iacr.org/2022/975}},
+      url = {https://eprint.iacr.org/2022/975}
+}
+
+@InProceedings{CSIFiShStillSecure,
+author="Fouotsa, Tako Boris
+and Moriya, Tomoki
+and Petit, Christophe",
+editor="Hazay, Carmit
+and Stam, Martijn",
+title="M-SIDH and MD-SIDH: Countering SIDH Attacks by Masking Information",
+booktitle="Advances in Cryptology -- EUROCRYPT 2023",
+year="2023",
+publisher="Springer Nature Switzerland",
+address="Cham",
+pages="282--309",
+abstract="The SIDH protocol is an isogeny-based key exchange protocol using supersingular isogenies, designed by Jao and De Feo in 2011. The protocol underlies the SIKE algorithm which advanced to the fourth round of NIST's post-quantum standardization project in May 2022. The algorithm was considered very promising: indeed the most significant attacks against SIDH were meet-in-the-middle variants with exponential complexity, and torsion point attacks which only applied to unbalanced parameters (and in particular, not to SIKE).",
+isbn="978-3-031-30589-4"
+}
+
+@article{CrystalsDilithium,
+title={CRYSTALS-Dilithium: A Lattice-Based Digital Signature Scheme}, volume={2018}, url={https://tches.iacr.org/index.php/TCHES/article/view/839}, DOI={10.13154/tches.v2018.i1.238-268}, abstractNote={In this paper, we present the lattice-based signature scheme Dilithium, which is a component of the CRYSTALS (Cryptographic Suite for Algebraic Lattices) suite that was submitted to NIST’s call for post-quantum cryptographic standards. The design of the scheme avoids all uses of discrete Gaussian sampling and is easily implementable in constant-time. For the same security levels, our scheme has a public key that is 2.5X smaller than the previously most efficient lattice-based schemes that did not use Gaussians, while having essentially the same signature size. In addition to the new design, we significantly improve the running time of the main component of many lattice-based constructions – the number theoretic transform. Our AVX2-based implementation results in a speed-up of roughly a factor of 2 over the previously best algorithms that appear in the literature. The techniques for obtaining this speed-up also have applications to other lattice-based schemes.}, number={1}, journal={IACR Transactions on Cryptographic Hardware and Embedded Systems}, author={Ducas, Léo and Kiltz, Eike and Lepoint, Tancrède and Lyubashevsky, Vadim and Schwabe, Peter and Seiler, Gregor and Stehlé, Damien}, year={2018}, month={Feb.}, pages={238–268} }
+
+@mastersthesis{ShorBackground,
+  author  = "Hong Zhu",
+  title   = "Survey of computational assumptions used in cryptography broken or not by Shor's algorithm",
+  school  = "McGill University",
+  year    = 2001,
+  address = "Montreal, QC, CA",
+  month   = dec
+}
+
+@inproceedings{ShorRSABreak,
+  author={Bhatia, Vaishali and Ramkumar, K.R.},
+  booktitle={2020 IEEE 5th International Conference on Computing Communication and Automation (ICCCA)}, 
+  title={An Efficient Quantum Computing technique for cracking RSA using Shor’s Algorithm}, 
+  year={2020},
+  volume={},
+  number={},
+  pages={89-94},
+  keywords={Automation;Conferences;Qubit;Parallel processing;Encryption;Computational efficiency;Quantum Computing;Classical Computing;Entanglement;Superposition;Qubits;Computation time;Shor’s Algorithm},
+  doi={10.1109/ICCCA49541.2020.9250806}}
+
+@misc{CSIFiShImplementation,
+  author = {KULeuven-COSIC},
+  title = {CSI-FiSh},
+  year = {2019},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/KULeuven-COSIC/CSI-FiSh}},
+  commit = {a7ccb87e23d9fd11c3d9de3da86b16d7749aa002}
+}
+
+@misc{CSIFiShBufferOverflow,
+    author={Franklin Harding},
+    title={Fix buffer overflow in get\_challenges},
+    year={2023},
+    howpublished={\url{https://github.com/KULeuven-COSIC/CSI-FiSh/pull/1}}
+}
+
+@InProceedings{PQSecurityReview,
+author="Raavi, Manohar
+and Wuthier, Simeon
+and Chandramouli, Pranav
+and Balytskyi, Yaroslav
+and Zhou, Xiaobo
+and Chang, Sang-Yoon",
+editor="Sako, Kazue
+and Tippenhauer, Nils Ole",
+title="Security Comparisons and Performance Analyses of Post-quantum Signature Algorithms",
+booktitle="Applied Cryptography and Network Security",
+year="2021",
+publisher="Springer International Publishing",
+address="Cham",
+pages="424--447",
+abstract="Quantum computing challenges the computational hardness assumptions anchoring the security of public-key ciphers, such as the prime factorization and the discrete logarithm problem. To prepare for the quantum era and withstand the attacks equipped with quantum computing, the security and cryptography communities are designing new quantum-resistant public-key ciphers. National Institute of Standards and Technology (NIST) is collecting and standardizing the post-quantum ciphers, similarly to its past involvements in establishing DES and AES as symmetric cipher standards. The NIST finalist algorithms for public-key signatures are Dilithium, Falcon, and Rainbow. Finding common ground to compare these algorithms can be difficult because of their design, the underlying computational hardness assumptions (lattice based vs. multivariate based), and the different metrics used for security strength analyses in the previous research (qubits vs. quantum gates). We overcome such challenges and compare the security and the performances of the finalist post-quantum ciphers of Dilithium, Falcon, and Rainbow. For security comparison analyses, we advance the prior literature by using the depth-width cost for quantum circuits (DW cost) to measure the security strengths and by analyzing the security in Universal Quantum Gate Model and with Quantum Annealing. For performance analyses, we compare the algorithms' computational loads in the execution time as well as the communication costs and implementation overheads when integrated with Transport Layer Security (TLS) and Transmission Control Protocol (TCP)/Internet Protocol (IP). Our work presents a security comparison and performance analysis as well as the trade-off analysis to inform the post-quantum cipher design and standardization to protect computing and networking in the post-quantum era.",
+isbn="978-3-030-78375-4"
+}
+
+@article{IsogenyIntro,
+  author       = {Luca De Feo},
+  title        = {Mathematics of Isogeny Based Cryptography},
+  journal      = {CoRR},
+  volume       = {abs/1711.04062},
+  year         = {2017},
+  url          = {http://arxiv.org/abs/1711.04062},
+  eprinttype    = {arXiv},
+  eprint       = {1711.04062},
+  timestamp    = {Mon, 13 Aug 2018 16:46:31 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-1711-04062.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{CodeBasedPQ,
+  author       = {Harshdeep Singh},
+  title        = {Code based Cryptography: Classic McEliece},
+  journal      = {CoRR},
+  volume       = {abs/1907.12754},
+  year         = {2019},
+  url          = {http://arxiv.org/abs/1907.12754},
+  eprinttype    = {arXiv},
+  eprint       = {1907.12754},
+  timestamp    = {Fri, 02 Aug 2019 09:43:42 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-1907-12754.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+@misc{sphincs,
+      author = {Daniel J.  Bernstein and Andreas Hülsing and Stefan Kölbl and Ruben Niederhagen and Joost Rijneveld and Peter Schwabe},
+      title = {The SPHINCS+ Signature Framework},
+      howpublished = {Cryptology ePrint Archive, Paper 2019/1086},
+      year = {2019},
+      doi = {10.1145/3319535.3363229},
+      note = {\url{https://eprint.iacr.org/2019/1086}},
+      url = {https://eprint.iacr.org/2019/1086}
+}
+
+@misc{EllipticCurveLectures,
+author={Andrew Sutherland},
+title={Elliptic Curves},
+year={2022},
+url={https://math.mit.edu/classes/18.783/2022/lectures.html}
+}
