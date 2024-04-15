@@ -26,7 +26,7 @@ fn modular_inverse(a: BigUint, n: &BigUint) -> BigUint {
 
     while r1 != zero {
         let quotient = &r0 / &r1; // non-modular division
-        (t0, t1) = (t1.clone(), (&t1).subm((&quotient).mulm(&t1, n), n));
+        (t0, t1) = (t1.clone(), (&t0).subm((&quotient).mulm(&t1, n), n));
         (r0, r1) = (r1.clone(), (&r0).subm((&quotient).mulm(&r1, n), n));
     }
 

@@ -2,6 +2,8 @@ use classgroup::PRIMES;
 use num_bigint::BigUint;
 use num_modular::ModularCoreOps;
 
+use crate::classgroup::{INV4, P};
+
 mod classgroup;
 mod montgomery;
 
@@ -15,11 +17,7 @@ fn main() {
     let result = BigUint::from(4u32) * prod - BigUint::from(1u32);
     assert_eq!(result, *classgroup::P);
 
-    let a = BigUint::from(3u32);
-    let b = BigUint::from(5u32);
-    let c = BigUint::from(2u32);
-
-    let modulus = BigUint::from(7u32);
-
-    assert_eq!(a, b.mulm(c, &modulus));
+    print!("{}\n", *INV4);
+    assert_eq!(BigUint::from(1u32), (&*INV4).mulm(BigUint::from(4u32), &P));
+    print!("{}\n", (&*INV4).mulm(BigUint::from(4u32), &P));
 }
