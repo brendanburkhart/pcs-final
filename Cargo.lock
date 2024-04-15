@@ -43,6 +43,7 @@ dependencies = [
  "lazy_static",
  "num-bigint",
  "num-modular",
+ "num-traits",
  "sha3",
 ]
 

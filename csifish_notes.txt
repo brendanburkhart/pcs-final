@@ -7,6 +7,8 @@ https://websites.math.leidenuniv.nl/algebra/ant.pdf
 montgomery modular arithmetic
 montgomery ladder: https://cr.yp.to/bib/2003/joye-ladder.pdf
 montgomery elliptic x-only arithmetic: https://eprint.iacr.org/2017/212.pdf
+                                 also: https://eprint.iacr.org/2016/413.pdf
+                                  and: https://www.ams.org/journals/mcom/1987-48-177/S0025-5718-1987-0866113-7/S0025-5718-1987-0866113-7.pdf
 
 reference for 70% of security bugs are memory bugs
 
