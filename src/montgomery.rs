@@ -1,7 +1,9 @@
 use num_bigint::BigUint;
 use num_modular::{ModularCoreOps, ModularPow};
+use num_traits::{One,Zero};
+use std::fmt;
 
-use crate::classgroup::{INV4, P};
+use crate::{classgroup::{INV4, P}, modular};
 
 // Elliptic curve in Montgomery form
 //     See https://eprint.iacr.org/2017/212.pdf for details
@@ -12,10 +14,22 @@ pub struct MontgomeryCurve {
     ap2d4: BigUint, // (a+2)/4
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Point {
     pub x: BigUint,
     pub z: BigUint,
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.z.is_zero() {
+            return write!(f, "1 : 0");
+        } else {
+            let z_inv = modular::inverse(self.z.clone(), &P);
+            let x = (&self.x).mulm(&z_inv, &P);
+            return write!(f, "{} : 1", x);
+        }
+    }
 }
 
 impl MontgomeryCurve {
@@ -23,6 +37,7 @@ impl MontgomeryCurve {
         let two: BigUint = BigUint::from(2u32);
         let ap2d4 = ((&a).addm(&two, &P))
                          .mulm(&(*INV4), &P);
+
         MontgomeryCurve { a, ap2d4: ap2d4.clone() }
     }
 
@@ -71,24 +86,31 @@ impl MontgomeryCurve {
 
         return Point {
             x: x.clone(),
-            z: v1 * v3,
+            z: (&v1).mulm(&v3, &P),
         }
     }
 
     // Given P not equal to origin or infinity, computes x([k]P)
     pub fn ladder(&self, p: &Point, k: BigUint) -> Point {
+        if k.is_zero() {
+            return Point {
+                x: One::one(),
+                z: Zero::zero(),
+            };
+        }
+
         let ell = k.bits();
         let mut x0 = (*p).clone();
         let mut x1 = self.double(p);
-        for i in ell-2..=0 {
+        for i in (0..=(ell-2)).rev() {
+            let sum = self.add3(&x0, &x1, &p);
+
             if k.bit(i) {
-                let temp = self.double(p);
-                x0 = self.add3(&x0, &x1, &p);
-                x1 = temp;
+                x0 = sum;
+                x1 = self.double(&x1);
             } else {
-                let temp = self.double(&x0);
-                x1 = self.add3(&x0, &x1, &p);
-                x0 = temp;
+                x0 = self.double(&x0);
+                x1 = sum;
             }
         }
 
