@@ -27,4 +27,11 @@ lazy_static! {
 
     // INV4 = (1/4) mod p
     pub static ref INV4: BigUint = modular::inverse(BigUint::from(4u32), &P);
+
+    // length of Hasse-interval = 2 * 2*sqrt(p)
+    pub static ref HASSE_INTERVAL: BigUint = BigUint::from(0x17895e71e1a20b3fu64) * BigUint::from(2u32).pow(0 * 64) +
+                                             BigUint::from(0x38d0cd95f8636a56u64) * BigUint::from(2u32).pow(1 * 64) + 
+                                             BigUint::from(0x142b9541e59682cdu64) * BigUint::from(2u32).pow(2 * 64) +
+                                             BigUint::from(0x856f1399d91d6592u64) * BigUint::from(2u32).pow(3 * 64) + 
+                                             BigUint::from(0x02u64) * BigUint::from(2u32).pow(4 * 64);
 }

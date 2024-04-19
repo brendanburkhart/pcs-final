@@ -10,4 +10,6 @@ lazy_static = "1.4.0"
 num-bigint = { version = "0.4.4", features = ["std", "rand"] }
 num-modular = { version = "0.6.1", features = ["num-bigint", "num-integer", "num-traits"] }
 num-traits = "0.2.18"
+rand = "0.8.5"
+rng = "0.1.0"
 sha3 = "0.10.8"
