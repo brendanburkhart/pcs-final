@@ -93,29 +93,29 @@ impl MontgomeryCurve {
     fn double(&self, p: &Point) -> Point {
         let square = BigUint::from(2u32);
 
-        let v1 = (&p.x).addm(&p.z, &P);
-        let v1 = v1.powm(&square, &P);
+        let vplus = (&p.x).addm(&p.z, &P); // V1 in Costello & Smith
+        let vplus = vplus.powm(&square, &P); // (x + z)^2
 
-        let v2 = (&p.x).subm(&p.z, &P);
-        let v2 = v2.powm(&square, &P);
+        let vminus = (&p.x).subm(&p.z, &P); // V2 in Costello & Smith
+        let vminus = vminus.powm(&square, &P); // (x - z)^2
 
-        let v3 = (&v1).subm(&v2, &P);
+        let vdelta = (&vplus).subm(&vminus, &P); // V1 in Costello & Smith
 
-        let v2 = (&v2).mulm(&self.a.z, &P);
-        let v2 = (&v2).addm(&v2, &P);
-        let v2 = (&v2).addm(&v2, &P);
+        let va = (&vminus).mulm(&self.a.z, &P); 
+        let va = (&va).addm(&va, &P);
+        let va = (&va).addm(&va, &P); // vminus times cleared denominator
 
-        let x = (&v1).mulm(&v2, &P);
+        let x = (&vplus).mulm(&va, &P); // vminus * vplus * denominator
 
-        let v4 = (&self.a.z).addm(&self.a.z, &P);
-        let v4 = (&self.a.x).addm(&v4, &P);
-        let v4 = (&v4).mulm(&v3, &P);
+        let vb = (&self.a.z).addm(&self.a.z, &P);
+        let vb = (&self.a.x).addm(&vb, &P);
+        let vb = (&vb).mulm(&vdelta, &P);
 
-        let v4 = (&v4).addm(&v2, &P);
+        let vb = (&vb).addm(&va, &P);
 
         return Point {
             x: x.clone(),
-            z: (&v4).mulm(&v3, &P),
+            z: (&vb).mulm(&vdelta, &P),
         }
     }
 
