@@ -15,7 +15,7 @@ pub struct MontgomeryCurve {
     ap2d4: BigUint, // (a+2)/4
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Point {
     pub x: BigUint,
     pub z: BigUint,
@@ -28,20 +28,32 @@ impl Point {
         };
     }
 
+    pub fn zero() -> Point {
+        return Point {
+            x: BigUint::one(),
+            z: BigUint::zero(),
+        };
+    }
+
     pub fn is_zero(&self) -> bool {
         return self.z.is_zero();
+    }
+
+    pub fn normalize(&self) -> Point {
+        if self.z.is_zero() {
+            return Point{x: BigUint::one(), z: BigUint::zero()};
+        } else {
+            let z_inv = modular::inverse(self.z.clone(), &P);
+            let x = (&self.x).mulm(&z_inv, &P);
+            return Point{x, z: BigUint::one()};
+        }
     }
 }
 
 impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.z.is_zero() {
-            return write!(f, "1 : 0");
-        } else {
-            let z_inv = modular::inverse(self.z.clone(), &P);
-            let x = (&self.x).mulm(&z_inv, &P);
-            return write!(f, "{} : 1", x);
-        }
+        let p = self.normalize();
+        return write!(f, "{} : {}", p.x, p.z);
     }
 }
 
@@ -105,18 +117,19 @@ impl MontgomeryCurve {
     }
 
     // Given P not equal to origin or infinity, computes x([k]P)
-    // Algorithm 4 in Costello & Smith
-    pub fn mult(&self, p: &Point, k: BigUint) -> Point {
+    // Algorithm 4 in Costello & Smith, Montgomery ladder
+    pub fn mult(&self, p: &Point, k: &BigUint) -> Point {
         if k.is_zero() {
-            return Point {
-                x: One::one(),
-                z: Zero::zero(),
-            };
+            return Point::zero();
+        } else if k.is_one() {
+            return p.clone();
         }
 
         let ell = k.bits();
         let mut x0 = (*p).clone();
         let mut x1 = self.double(p);
+
+        assert!(ell >= 2);
 
         // standard double-and-add, but adapted to x-only arithmetic
         for i in (0..=(ell-2)).rev() {
@@ -148,54 +161,203 @@ impl MontgomeryCurve {
         return true;
     }
 
-    // Algorithm 1 in Castryck et al.
-    // Only valid for nonsingular curves
-    // TODO: speed-up by sharing computations of (p+1)/ell_i
-    pub fn is_supersingular(&self) -> bool {
-        // computes (p+1)/(ell_i)
-        fn leave_out_one_product(i: usize) -> BigUint {
-            let mut k = BigUint::from(4u32);
-            for j in 0..PRIMES.len() {
-                if j != i {
-                    let ell = BigUint::from(PRIMES[j]);
-                    k = (&k).mulm(ell, &P);
-                }
+     // recursive subdivision to share computation of [(p+1)/ell_i]
+    // between different ell_i. lower is inclusive, upper is not
+    fn is_supersingular_inner(&self, lower_idx: usize, upper_idx: usize, q: &Point, order_divisor: &mut BigUint, z: &BigUint) -> Option<bool> {
+        if upper_idx - lower_idx > 1 {
+            let midpoint = lower_idx + (upper_idx - lower_idx)/2;
+            let lower_product: BigUint = PRIMES[lower_idx..midpoint].iter().product(); // product of first half
+            let upper_product: BigUint = PRIMES[midpoint..upper_idx].iter().product(); // product of second half
+
+            let qa = self.mult(q, &lower_product);
+            let qb = self.mult(q, &upper_product);
+
+            let upper = self.is_supersingular_inner(midpoint, upper_idx, &qa, order_divisor, &lower_product.mulm(z, &P));
+            if upper.is_some() {
+                return upper;
             }
 
-            return k;
+            let lower = self.is_supersingular_inner(lower_idx, midpoint, &qb, order_divisor, &upper_product.mulm(z, &P));
+            return lower;
+        } else {
+            let ell = BigUint::from(PRIMES[lower_idx]);
+            let r = self.mult(&q, &ell); // ell_i * q = [p+1] * k
+            if !r.is_zero() {
+                return Some(false); // ell_i divides p+1 but not group order, so cannot be supersingular
+            }
+
+            // p+1 is multiple of group order but (p+1)/ell_i is not => ell_i divides group order
+            if !q.is_zero() {
+                let z: &BigUint = order_divisor;
+                *order_divisor = z.mulm(&ell, &P);
+            }
+
+            // once the Hasse interval [(p+1) - 2*sqrt(p), (p+1) + 2*sqrt(2)] contains only one multiple
+            // of the order_divisor, and order_divisor divides p+1, we can be sure the group order is p+1
+            if *order_divisor > *HASSE_INTERVAL {
+                return Some(true);
+            } else {
+                return None;
+            }
         }
+    }
 
-        print!("{}\n\n", leave_out_one_product(0));
-
+    // Algorithm 1 in Castryck et al.
+    // Only valid for nonsingular curves
+    pub fn is_supersingular(&self) -> bool {
         loop {
             let x = rand::thread_rng().gen_biguint_below(&P);
             let p = Point::from_x(x);
+            let p = self.mult(&p, &BigUint::from(4u32)); // remove even factor from order
+            if p.is_zero() { continue }
 
             let mut order_divisor = BigUint::one();
-            for i in 0..PRIMES.len() {
-                let k = leave_out_one_product(i);
 
-                let q = self.mult(&p, k); // [(p+1)/ell_i] * k
-                let r = self.mult(&q, BigUint::from(PRIMES[i])); // ell_i * q = [p+1] * k
-                if !r.is_zero() {
-                    print!("{}, {}, {}, {}, {}\n", BigUint::from(PRIMES[i]), order_divisor, p, q, r);
-                    return false; // ell_i divides p+1 but not group order, so cannot be supersingular
-                }
-
-                // p+1 is multiple of group order but (p+1)/ell_i is not => ell_i divides group order
-                if !q.is_zero() {
-                    order_divisor = order_divisor.mulm(BigUint::from(PRIMES[i]), &P);
-                }
-
-                // once the Hasse interval [(p+1) - 2*sqrt(p), (p+1) + 2*sqrt(2)] contains only one multiple
-                // of the order_divisor, and order_divisor divides p+1, we can be sure the group order is p+1
-                if order_divisor > *HASSE_INTERVAL {
-                    return true;
-                }
+            let supersingular = self.is_supersingular_inner(0, PRIMES.len(), &p, &mut order_divisor, &BigUint::from(4u32));
+            if supersingular.is_some() {
+                return supersingular.unwrap();
             }
-
+            
             // failed to confirm or refute supersingularity
             // try again with another random point
         }
+    }
+}
+
+// Test MontgomeryCurve against computations verified in SageMath
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn add3() {
+        let e = MontgomeryCurve::new(BigUint::zero());
+
+        let p = Point::from_x(BigUint::from_str("2312358140734276205846945336837851905999822779435115388061544163252550153570538668821946365853850479473373914064657421785837590798620029506408147832689588").unwrap());
+        let q = Point::from_x(BigUint::from_str("1966862861234634901995729567996927158856250002428122626145328998447532127805166091065319349076607345664792832280295348278073162978962961909004455816564443").unwrap());
+        let pq_sum = Point::from_x(BigUint::from_str("4496438020496766616282994673375498894252483353026319191125758947004822107070182520645733369602767683759440544875273015416725059634135174914175766939012166").unwrap());
+        let pq_diff = Point::from_x(BigUint::from_str("4731032281376241832924728066192436626155172008235730893583120849924691131260900844876429959545736397402621677725711256678314518853142702763386235211151347").unwrap());
+
+        assert_eq!(e.add3(&p, &q, &pq_sum).normalize(), pq_diff);
+        assert_eq!(e.add3(&p, &q, &pq_diff).normalize(), pq_sum);
+
+        let a = BigUint::from_str("3761345407298064040496734252078593163266383672948683311982036640586525413088935630843747460636021803468026326856059472255583832635669585412131689148241997").unwrap();
+        let e = MontgomeryCurve::new(a);
+
+        let p = Point::from_x(BigUint::from_str("4495586086716003855534597567300884452536691491748772275003589245631180523337279652783627888301578150162888549581407021085079723193331174354529450141813801").unwrap());
+        let q = Point::from_x(BigUint::from_str("2968156693709759315089228567246446056329032951687538433806112532252530237695395332247067250743253776088238540204013357786035386112613018900138010737744091").unwrap());
+        let pq_sum = Point::from_x(BigUint::from_str("4836568961178951459879098012443938853977534455317225177432516118051414261523118981615417779011677914332941757424552957519998224019954574117876006773867965").unwrap());
+        let pq_diff = Point::from_x(BigUint::from_str("1220043028688943352752850925142751914412058201476466295874059652032179108840941156661901057029693822874756623887252828932021847804313508427021299452110722").unwrap());
+
+        assert_eq!(e.add3(&p, &q, &pq_sum).normalize(), pq_diff);
+        assert_eq!(e.add3(&p, &q, &pq_diff).normalize(), pq_sum);
+    }
+
+    #[test]
+    fn double() {
+        let e = MontgomeryCurve::new(BigUint::zero());
+
+        let p = Point::from_x(BigUint::from_str("1937602058922554376729573884420059713904515504221308236688786931373958308013090692618208128532656870205905241607945790144785759482324841103257085151564185").unwrap());
+        let q = Point::from_x(BigUint::from_str("4216250901005565432547001457763459901579976118362895665057193106411438683120995842641766367782645354045134370935541922935163580753484638504884617740357371").unwrap());
+        let two_p = Point::from_x(BigUint::from_str("461982659298801001718203982104366362282888453764857564810571685099923594149330642707265790787585888193988279975777958118774278575028105897433152294744769").unwrap());
+        let two_q = Point::from_x(BigUint::from_str("145744890059114125125560197215401329492989650142916373755678630641880230493012904236143199250318243547726234578644878390189910748832599495244142194587720").unwrap());
+
+        assert_eq!(e.double(&p).normalize(), two_p);
+        assert_eq!(e.double(&q).normalize(), two_q);
+
+        let a = BigUint::from_str("1709179145736732726190467057772287838888749898111981175668039410052353567995718751503892000081725932287177755925719395202935581874824412236400752119437261").unwrap();
+        let e = MontgomeryCurve::new(a);
+
+        let p = Point::from_x(BigUint::from_str("1809210106972348290992138466942598742939032607295145037532561831011318955704255610491397207345121502684825264759784036949158705639565797064768414045286843").unwrap());
+        let q = Point::from_x(BigUint::from_str("3316622817677519818985121645043921716174787690029019293216929147225736194796978692153860873593587040902929679904313311019990000675876868194561411288552914").unwrap());
+        let two_p = Point::from_x(BigUint::from_str("2157251028612023277034255784142877994688790938730421069519630989106955855484812206272784343211746696219577394029905473040697595489912545789451826952997447").unwrap());
+        let two_q = Point::from_x(BigUint::from_str("746635998476565278471879668573951751397281056925627955991523080051482777875006641871676157042375843280167956890761965317435974624098761025237579999741752").unwrap());
+
+        assert_eq!(e.double(&p).normalize(), two_p);
+        assert_eq!(e.double(&q).normalize(), two_q);
+    }
+
+    #[test]
+    fn mult() {
+        let a = BigUint::from_str("806328403495992267109149450868966636991037459819762153296867249317594469447447955344137556739687998616446227640966045492819498968091824989742441223431822").unwrap();
+        let e = MontgomeryCurve::new(a);
+
+        let p = Point::from_x(BigUint::from_str("1538479638774176874430290160819066779956824411302506566340952445920164206410596012176206212551212863745949091286457738164909520235809167593642776256451348").unwrap());
+        let q = Point::from_x(BigUint::from_str("5213933254543299671154526010994617680832632379959926545922182614816102995395142995205368221299305516955759965074840683014659775047482248220893460782049355").unwrap());
+
+        let k = BigUint::zero();
+        assert_eq!(e.mult(&p, &k).normalize(), Point::zero());
+        assert_eq!(e.mult(&q, &k).normalize(), Point::zero());
+
+        let k = BigUint::one();
+        assert_eq!(e.mult(&p, &k).normalize(), p);
+        assert_eq!(e.mult(&q, &k).normalize(), q);
+
+        let k = BigUint::from_str("1413548981623491970421649012354808654204587476429295693715967402719052031331206857389616701585512860536287680679987038959402123819391162288336558202497316").unwrap();
+        let kp = Point::from_x(BigUint::from_str("2868756308881603928495903678299702212093180571231991285456465524452348559594888946419265166874694035131722161670580533023868466144866644686925596344818041").unwrap());
+        let kq = Point::from_x(BigUint::from_str("3405406050475848249398605003979403540220313857436751644846308659849618781571445978170966794736884105229590982900649475807077704413192004717224334412005047").unwrap());
+        assert_eq!(e.mult(&p, &k).normalize(), kp);
+        assert_eq!(e.mult(&q, &k).normalize(), kq);
+
+        let k = BigUint::from_str("696230786747357566586975788811703550671222779362105476326241069287539761285997871738936119408694768119547302957429166517494205025415697128313440505106924").unwrap();
+        let kp = Point::from_x(BigUint::from_str("1065322933146839210816150372813911496132449702212035899660235387485984997901483608944975099026409201713384588143995018893871599603978334571300293868209716").unwrap());
+        let kq = Point::from_x(BigUint::from_str("3304617941839255200664447090553691513042451086372604339615061582936491261220222966922855464818834627752367446039290843143082764304175855178935927944912457").unwrap());
+        assert_eq!(e.mult(&p, &k).normalize(), kp);
+        assert_eq!(e.mult(&q, &k).normalize(), kq);
+    }
+
+    #[test]
+    fn is_nonsingular() {
+        let e = MontgomeryCurve::new(BigUint::zero());
+        assert!(e.is_nonsingular());
+
+        let e = MontgomeryCurve::new(BigUint::from(2u32));
+        assert!(!e.is_nonsingular());
+
+        let minus_two: BigUint = (&*P) - BigUint::from(2u32);
+        let e = MontgomeryCurve::new(minus_two);
+        assert!(!e.is_nonsingular());
+
+        let a = BigUint::from_str("806328403495992267109149450868966636991037459819762153296867249317594469447447955344137556739687998616446227640966045492819498968091824989742441223431822").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(e.is_nonsingular());
+        
+        let a = BigUint::from_str("1709179145736732726190467057772287838888749898111981175668039410052353567995718751503892000081725932287177755925719395202935581874824412236400752119437261").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(e.is_nonsingular());
+    }
+
+    #[test]
+    fn is_supersingular() {
+        // Supersingular curves
+        let e = MontgomeryCurve::new(BigUint::zero());
+        assert!(e.is_supersingular());
+
+        let a = BigUint::from_str("3761345407298064040496734252078593163266383672948683311982036640586525413088935630843747460636021803468026326856059472255583832635669585412131689148241997").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(e.is_supersingular());
+
+        let a = BigUint::from_str("806328403495992267109149450868966636991037459819762153296867249317594469447447955344137556739687998616446227640966045492819498968091824989742441223431822").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(e.is_supersingular());
+        
+        let a = BigUint::from_str("1709179145736732726190467057772287838888749898111981175668039410052353567995718751503892000081725932287177755925719395202935581874824412236400752119437261").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(e.is_supersingular());
+
+        // Ordinary curves
+        let a = BigUint::from_str("1939902019534806018427196602142660034992970762099605557756623858435980704369988592447834924216529998385369289786266651499290995707100293528435489458165344").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(!e.is_supersingular());
+
+        let a = BigUint::from_str("1866223479810078799335388829853753029730709787935267021757606377075016878572548078343651839809404146780592040359635385767112537414085805658738687484339631").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(!e.is_supersingular());
+
+        let a = BigUint::from_str("2661785568965525579235733734106882226803961945735665715347090419442451011470046364314754336833920717330106734294787860943873523408164640783182492955709999").unwrap();
+        let e = MontgomeryCurve::new(a);
+        assert!(!e.is_supersingular());
     }
 }
