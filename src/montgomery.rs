@@ -1,9 +1,12 @@
 use num_bigint::{BigUint, RandBigInt};
 use num_modular::{ModularCoreOps, ModularPow, ModularUnaryOps};
-use num_traits::{One,Zero};
+use num_traits::{One, Zero};
 use std::fmt;
 
-use crate::{classgroup::{HASSE_INTERVAL, P, PRIMES}, modular};
+use crate::{
+    classgroup::{HASSE_INTERVAL, P, PRIMES},
+    modular,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Point {
@@ -13,9 +16,7 @@ pub struct Point {
 
 impl Point {
     pub fn from_x(x: BigUint) -> Point {
-        return Point {
-            x, z: One::one()
-        };
+        return Point { x, z: One::one() };
     }
 
     pub fn zero() -> Point {
@@ -31,11 +32,17 @@ impl Point {
 
     pub fn normalize(&self) -> Point {
         if self.z.is_zero() {
-            return Point{x: BigUint::one(), z: BigUint::zero()};
+            return Point {
+                x: BigUint::one(),
+                z: BigUint::zero(),
+            };
         } else {
             let z_inv = modular::inverse(self.z.clone(), &P);
             let x = (&self.x).mulm(&z_inv, &P);
-            return Point{x, z: BigUint::one()};
+            return Point {
+                x,
+                z: BigUint::one(),
+            };
         }
     }
 }
@@ -58,11 +65,15 @@ pub struct MontgomeryCurve {
 
 impl MontgomeryCurve {
     pub fn new(a: BigUint) -> MontgomeryCurve {
-        return MontgomeryCurve { a: Point::from_x(a) };
+        return MontgomeryCurve {
+            a: Point::from_x(a),
+        };
     }
 
     fn projective(ax: BigUint, az: BigUint) -> MontgomeryCurve {
-        return MontgomeryCurve { a: Point{ x: ax, z: az } };
+        return MontgomeryCurve {
+            a: Point { x: ax, z: az },
+        };
     }
 
     // Given points P, Q, and either P+Q or P-Q, computes P-Q or P+Q
@@ -82,13 +93,13 @@ impl MontgomeryCurve {
         let v3 = &v1.addm(&v2, &P);
         let v3 = &v3.powm(&square, &P);
 
-        let v4 =  &v1.subm(&v2, &P);
+        let v4 = &v1.subm(&v2, &P);
         let v4 = &v4.powm(&square, &P);
 
         return Point {
             x: (&pq.z).mulm(v3, &P),
             z: (&pq.x).mulm(v4, &P),
-        }
+        };
     }
 
     // Given P not equal to origin or infinity, computes P+P
@@ -120,7 +131,7 @@ impl MontgomeryCurve {
         return Point {
             x: x.clone(),
             z: (&vb).mulm(&vdelta, &P),
-        }
+        };
     }
 
     // Given P not equal to origin or infinity, computes x([k]P)
@@ -139,7 +150,7 @@ impl MontgomeryCurve {
         assert!(ell >= 2);
 
         // standard double-and-add, but adapted to x-only arithmetic
-        for i in (0..=(ell-2)).rev() {
+        for i in (0..=(ell - 2)).rev() {
             let sum = self.add3(&x0, &x1, &p);
 
             if k.bit(i) {
@@ -151,10 +162,7 @@ impl MontgomeryCurve {
             }
         }
 
-        return Point {
-            x: x0.x,
-            z: x0.z
-        }
+        return Point { x: x0.x, z: x0.z };
     }
 
     // Verify curve is nonsingular, i.e. A^2 != 4
@@ -163,7 +171,7 @@ impl MontgomeryCurve {
         if a.x == BigUint::from(2u32) {
             return false;
         } else if (&a.x).addm(BigUint::from(2u32), &P) == BigUint::zero() {
-            return false
+            return false;
         }
 
         return true;
@@ -172,21 +180,40 @@ impl MontgomeryCurve {
     // Algorithm 3 in Castryck et al.
     // Recursive subdivision to share computation of [(p+1)/ell_i]
     //   between different ell_i. lower is inclusive, upper is not
-    fn is_supersingular_inner(&self, lower_idx: usize, upper_idx: usize, q: &Point, order_divisor: &mut BigUint, z: &BigUint) -> Option<bool> {
+    fn is_supersingular_inner(
+        &self,
+        lower_idx: usize,
+        upper_idx: usize,
+        q: &Point,
+        order_divisor: &mut BigUint,
+        z: &BigUint,
+    ) -> Option<bool> {
         if upper_idx - lower_idx > 1 {
-            let midpoint = lower_idx + (upper_idx - lower_idx)/2;
+            let midpoint = lower_idx + (upper_idx - lower_idx) / 2;
             let lower_product: BigUint = PRIMES[lower_idx..midpoint].iter().product(); // product of first half
             let upper_product: BigUint = PRIMES[midpoint..upper_idx].iter().product(); // product of second half
 
             let qa = self.mult(q, &lower_product);
             let qb = self.mult(q, &upper_product);
 
-            let upper = self.is_supersingular_inner(midpoint, upper_idx, &qa, order_divisor, &lower_product.mulm(z, &P));
+            let upper = self.is_supersingular_inner(
+                midpoint,
+                upper_idx,
+                &qa,
+                order_divisor,
+                &lower_product.mulm(z, &P),
+            );
             if upper.is_some() {
                 return upper;
             }
 
-            let lower = self.is_supersingular_inner(lower_idx, midpoint, &qb, order_divisor, &upper_product.mulm(z, &P));
+            let lower = self.is_supersingular_inner(
+                lower_idx,
+                midpoint,
+                &qb,
+                order_divisor,
+                &upper_product.mulm(z, &P),
+            );
             return lower;
         } else {
             let ell = BigUint::from(PRIMES[lower_idx]);
@@ -218,11 +245,19 @@ impl MontgomeryCurve {
             let x = rand::thread_rng().gen_biguint_below(&P);
             let p = Point::from_x(x);
             let p = self.mult(&p, &BigUint::from(4u32)); // remove even factor from order
-            if p.is_zero() { continue }
+            if p.is_zero() {
+                continue;
+            }
 
             let mut order_divisor = BigUint::one();
 
-            let supersingular = self.is_supersingular_inner(0, PRIMES.len(), &p, &mut order_divisor, &BigUint::from(4u32));
+            let supersingular = self.is_supersingular_inner(
+                0,
+                PRIMES.len(),
+                &p,
+                &mut order_divisor,
+                &BigUint::from(4u32),
+            );
             if supersingular.is_some() {
                 return supersingular.unwrap();
             }
@@ -240,23 +275,32 @@ impl MontgomeryCurve {
         assert!(ell % 2 == 1);
 
         // inititalize computation of q = phi(p)
-        let mut q = Point { x: BigUint::one(), z: BigUint::one() };
+        let mut q = Point {
+            x: BigUint::one(),
+            z: BigUint::one(),
+        };
 
         // shared factors for coefficient c computation
         let psub: BigUint = (&p.x).subm(&p.z, &P);
         let padd: BigUint = (&p.x).addm(&p.z, &P);
 
         // last three multiples of kernel generator k, kernel_points[i % 3] = [i+1]k
-        let mut kernel_points: [Point; 3] = [ k.clone(), self.double(k), Point::zero(),  ];
+        let mut kernel_points: [Point; 3] = [k.clone(), self.double(k), Point::zero()];
         // let (x_i : z_i) = [i]k, and expand the product (z_i*w + x_i) as poly of w
         // c = [c_0, c_1, c_(ell-2), c_(ell-1)] are first two, last two coefficients of this expansion
-        let mut c: [BigUint; 4] = [ BigUint::one(), BigUint::zero(), BigUint::zero(), BigUint::one() ];
+        let mut c: [BigUint; 4] = [
+            BigUint::one(),
+            BigUint::zero(),
+            BigUint::zero(),
+            BigUint::one(),
+        ];
 
         // Since [i]P = [ell-i]P, we only compute up to ell/2 and then square the products
-        for i in 0..(ell/2) {
+        for i in 0..(ell / 2) {
             if i > 1 {
                 // [i]k = [i-1]k + k
-                kernel_points[i % 3] =  self.add3(&kernel_points[(i - 1) % 3], k, &kernel_points[(i - 2) % 3]);
+                kernel_points[i % 3] =
+                    self.add3(&kernel_points[(i - 1) % 3], k, &kernel_points[(i - 2) % 3]);
             }
 
             // Xi/Zi = [i+1]P

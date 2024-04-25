@@ -1,4 +1,5 @@
-use classgroup::PRIMES;
+use std::str::FromStr;
+
 use num_bigint::BigUint;
 
 use crate::montgomery::MontgomeryCurve;
@@ -8,38 +9,14 @@ mod modular;
 mod montgomery;
 
 fn main() {
-    let mut prod: BigUint = BigUint::from(1u32);
-
-    for prime in PRIMES {
-        prod = prod * BigUint::from(prime);
-    }
-
-    let result = BigUint::from(4u32) * prod - BigUint::from(1u32);
-    assert_eq!(result, *classgroup::P);
-
-    let m = MontgomeryCurve::new(BigUint::from(0u32));
-    let p = montgomery::Point {
-        x: BigUint::from(89279u32),
-        z: BigUint::from(1u32)
-    };
-
-    let k = 157u32;
-
-    print!("{:?}\n", p);
-
-    let mut a = p.clone();
-    let mut b = m.double(&p);
-
-    for _i in 0..(k-1) {
-        let temp = b.clone();
-        b = m.add3(&b, &p, &a);
-        a = temp;
-    }
-
-    print!("{}\n", m.ladder(&p, BigUint::from(k)));
-    print!("{}\n", a);
-
-    // print!("{}\n", *INV4);
-    // assert_eq!(BigUint::from(1u32), (&*INV4).mulm(BigUint::from(4u32), &P));
-    // print!("{}\n", (&*INV4).mulm(BigUint::from(4u32), &P));
+    let m0 = MontgomeryCurve::new(BigUint::from(0u32));
+    let m1 = MontgomeryCurve::new(BigUint::from(2u32));
+    let minus_two: BigUint = (&*classgroup::P) - BigUint::from(2u32);
+    let m2 = MontgomeryCurve::new(minus_two);
+    let big = BigUint::from_str("3761345407298064040496734252078593163266383672948683311982036640586525413088935630843747460636021803468026326856059472255583832635669585412131689148241997").unwrap();
+    let m3 = MontgomeryCurve::new(big);
+    print!("m0: {}, {}\n", m0.is_nonsingular(), m0.is_supersingular());
+    print!("m1: {}, {}\n", m1.is_nonsingular(), m1.is_supersingular());
+    print!("m2: {}, {}\n", m2.is_nonsingular(), m2.is_supersingular());
+    print!("m3: {}, {}\n", m3.is_nonsingular(), m3.is_supersingular());
 }

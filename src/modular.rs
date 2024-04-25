@@ -13,7 +13,7 @@ pub fn inverse(a: BigUint, n: &BigUint) -> BigUint {
 
     while r1 != zero {
         let quotient = &r0 / &r1; // non-modular division
-        (t0, t1) = (t1.clone(), &t0  - (&quotient * &t1));
+        (t0, t1) = (t1.clone(), &t0 - (&quotient * &t1));
         (r0, r1) = (r1.clone(), &r0 - (&quotient * &r1));
     }
 
