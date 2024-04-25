@@ -240,36 +240,30 @@ impl MontgomeryCurve {
         assert!(ell % 2 == 1);
 
         // inititalize computation of q = phi(p)
-        let x: BigUint = (&p.x).mulm(&k.x, &P);
-        let t: BigUint = (&p.z).mulm(&k.z, &P);
-        let x = (&x).subm(&t, &P);
-
-        let z: BigUint = (&p.x).mulm(&k.z, &P);
-        let t: BigUint = (&p.z).mulm(&k.x, &P);
-        let z = (&z).subm(&t, &P);
-
-        let mut q = Point { x, z };
+        let mut q = Point { x: BigUint::one(), z: BigUint::one() };
 
         // shared factors for coefficient c computation
         let psub: BigUint = (&p.x).subm(&p.z, &P);
         let padd: BigUint = (&p.x).addm(&p.z, &P);
 
         // last three multiples of kernel generator k, kernel_points[i % 3] = [i+1]k
-        let mut kernel_points: [Point; 3] = [ k.clone(), self.double(k), Point::zero() ];
+        let mut kernel_points: [Point; 3] = [ k.clone(), self.double(k), Point::zero(),  ];
         // let (x_i : z_i) = [i]k, and expand the product (z_i*w + x_i) as poly of w
-        // c = [c_0, c_1, c_(ell-2), c_(ell-1)] coefficients of this expansion
-        let mut c: [BigUint; 4] = [ k.x.clone(), k.z.clone(), k.x.clone(), k.z.clone() ];
+        // c = [c_0, c_1, c_(ell-2), c_(ell-1)] are first two, last two coefficients of this expansion
+        let mut c: [BigUint; 4] = [ BigUint::one(), BigUint::zero(), BigUint::zero(), BigUint::one() ];
 
-        for i in 1..(ell/2) {
+        // Since [i]P = [ell-i]P, we only compute up to ell/2 and then square the products
+        for i in 0..(ell/2) {
             if i > 1 {
                 // [i]k = [i-1]k + k
                 kernel_points[i % 3] =  self.add3(&kernel_points[(i - 1) % 3], k, &kernel_points[(i - 2) % 3]);
             }
 
-            // update coefficients c for codomain curve computation
+            // Xi/Zi = [i+1]P
             let xi: &BigUint = &kernel_points[i % 3].x;
             let zi: &BigUint = &kernel_points[i % 3].z;
 
+            // multiply polynomial by (Zi*w + Xi)
             let a = (&c[0]).mulm(zi, &P);
             let b = (&c[1]).mulm(xi, &P);
             c[1] = a.addm(b, &P);
@@ -280,13 +274,14 @@ impl MontgomeryCurve {
             c[2] = a.addm(b, &P);
             c[3] = (&c[3]).mulm(zi, &P);
 
-            // Inner portion of equation 17 in Costello & Hisil
+            // Inner portion of equation 17 in Costello & Hisil, computes:
+            // a = (X-Z)*(Xi+Zi), b = (X+Z)*(Xi-Zi)
+            // Q.x *= (a + b)
+            // Q.z *= (a - b)
             let ikadd = xi.addm(zi, &P);
             let iksub = xi.subm(zi, &P);
-
             let a = (&psub).mulm(&ikadd, &P);
             let b = (&padd).mulm(&iksub, &P);
-
             let s = (&a).addm(&b, &P);
             let t = (&a).subm(&b, &P);
 
@@ -294,10 +289,11 @@ impl MontgomeryCurve {
             q.z = (&q.z).mulm(t, &P);
         }
 
-        // Equation 17 in Costello & Hisil
+        // Compute Q = phi(P) via Equation 17 from Costello & Hisil
         q.x = (&p.x).mulm((&q.x).sqm(&P), &P);
         q.z = (&p.z).mulm((&q.z).sqm(&P), &P);
 
+        // square the polynomial
         c[1] = (&c[0]).mulm(&c[1], &P);
         c[1] = (&c[1]).addm(&c[1], &P);
         c[0] = (&c[0]).sqm(&P);
