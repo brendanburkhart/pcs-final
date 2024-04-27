@@ -1,5 +1,5 @@
 use num_bigint::{BigUint, RandBigInt};
-use num_modular::{ModularCoreOps, ModularPow, ModularUnaryOps};
+use num_modular::{ModularCoreOps, ModularPow, ModularSymbols, ModularUnaryOps};
 use num_traits::{One, Zero};
 use std::fmt;
 
@@ -24,6 +24,11 @@ impl Point {
             x: BigUint::one(),
             z: BigUint::zero(),
         };
+    }
+
+    pub fn random() -> Point {
+        let x = rand::thread_rng().gen_biguint_below(&P);
+        return Point::from_x(x);
     }
 
     pub fn is_zero(&self) -> bool {
@@ -74,6 +79,28 @@ impl MontgomeryCurve {
         return MontgomeryCurve {
             a: Point { x: ax, z: az },
         };
+    }
+
+    pub fn normalize(&self) -> MontgomeryCurve {
+        let a = self.a.normalize();
+        return MontgomeryCurve { a };
+    }
+
+    // Whether or not p corresponds to any rational point on the curve
+    pub fn on_curve(&self, p: &Point) -> bool {
+        let cube = BigUint::from(3u32);
+        let x3 = (&p.x).powm(cube, &P);
+        let x2 = (&p.x).sqm(&P).mulm(&self.a.x, &P);
+        let rhs = x3.addm(x2, &P).addm(&p.x, &P);
+
+        // If rhs is square, point is only rational on this curve
+        // If rhs is zero, point is rational on both curve and twist
+        // If rhs is non-square, point is only rational on the twist
+        if rhs.legendre(&P) != -1 {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     // Given points P, Q, and either P+Q or P-Q, computes P-Q or P+Q
@@ -242,8 +269,7 @@ impl MontgomeryCurve {
     // Only valid for nonsingular curves
     pub fn is_supersingular(&self) -> bool {
         loop {
-            let x = rand::thread_rng().gen_biguint_below(&P);
-            let p = Point::from_x(x);
+            let p = Point::random();
             let p = self.mult(&p, &BigUint::from(4u32)); // remove even factor from order
             if p.is_zero() {
                 continue;
@@ -370,6 +396,24 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn on_curve() {
+        let a = BigUint::from_str("4561122714804072297964248928604431772071226190592676084116934519858418127468031603553901854927880992502690163637324040606314250216034085628238683026966664").unwrap();
+        let e = MontgomeryCurve::new(a);
+
+        let p = Point::from_x(BigUint::from_str("3035736430661539585172427421070469523799672482248858437856390322716664015770732222981651059347988050925478704576102799643909494464506854093314514225294570").unwrap());
+        assert!(e.on_curve(&p));
+
+        let p = Point::from_x(BigUint::from_str("3917577823577491549570069764550392570939495101814315516467356082519411230696835503310641760119606561624749678656321117545127650239316343138917683634079849").unwrap());
+        assert!(e.on_curve(&p));
+
+        let p = Point::from_x(BigUint::from_str("4564741336077040509315477512687602642462624666592824791112152051798465149731780574131847127177864245148964435159237410033129608223083361687866328180729231").unwrap());
+        assert!(!e.on_curve(&p));
+
+        let p = Point::from_x(BigUint::from_str("5202931567665352069813183559979345526961176019085699891645848937955890091210472577666353203214651995379336341686102240360958028639365237396154878406253331").unwrap());
+        assert!(!e.on_curve(&p));
+    }
 
     #[test]
     fn add3() {
