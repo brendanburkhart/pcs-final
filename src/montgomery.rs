@@ -88,9 +88,9 @@ impl MontgomeryCurve {
 
     // Whether or not p corresponds to any rational point on the curve
     pub fn on_curve(&self, p: &Point) -> bool {
-        let cube = BigUint::from(3u32);
-        let x3 = (&p.x).powm(cube, &P);
-        let x2 = (&p.x).sqm(&P).mulm(&self.a.x, &P);
+        let sq = (&p.x).mulm(&p.x, &P);
+        let x3 = (&sq).mulm(&p.x, &P); // cube of p.x
+        let x2 = (&sq).mulm(&self.a.x, &P);
         let rhs = x3.addm(x2, &P).addm(&p.x, &P);
 
         // If rhs is square, point is only rational on this curve
@@ -107,8 +107,6 @@ impl MontgomeryCurve {
     // P, Q must be distinct points, neither of which are the origin or infinity (zero)
     // Algorithm 1 in Costello & Smith
     fn add3(&self, p: &Point, q: &Point, pq: &Point) -> Point {
-        let square = BigUint::from(2u32);
-
         let v0 = (&p.x).addm(&p.z, &P);
         let v1 = (&q.x).subm(&q.z, &P);
         let v1 = &v1.mulm(&v0, &P);
@@ -118,10 +116,10 @@ impl MontgomeryCurve {
         let v2 = v2.mulm(&v0, &P);
 
         let v3 = &v1.addm(&v2, &P);
-        let v3 = &v3.powm(&square, &P);
+        let v3 = &v3.mulm(v3, &P);
 
         let v4 = &v1.subm(&v2, &P);
-        let v4 = &v4.powm(&square, &P);
+        let v4 = &v4.mulm(v4, &P);
 
         return Point {
             x: (&pq.z).mulm(v3, &P),
@@ -133,13 +131,11 @@ impl MontgomeryCurve {
     // Projective version of Algorithm 2 in Costello & Smith,
     // obtained by multiplying through by 4a.z
     fn double(&self, p: &Point) -> Point {
-        let square = BigUint::from(2u32);
+        let vplus = &(&p.x).addm(&p.z, &P); // V1 in Costello & Smith
+        let vplus = vplus.mulm(vplus, &P); // (x + z)^2
 
-        let vplus = (&p.x).addm(&p.z, &P); // V1 in Costello & Smith
-        let vplus = vplus.powm(&square, &P); // (x + z)^2
-
-        let vminus = (&p.x).subm(&p.z, &P); // V2 in Costello & Smith
-        let vminus = vminus.powm(&square, &P); // (x - z)^2
+        let vminus = &(&p.x).subm(&p.z, &P); // V2 in Costello & Smith
+        let vminus = vminus.mulm(vminus, &P); // (x - z)^2
 
         let vdelta = (&vplus).subm(&vminus, &P); // V1 in Costello & Smith
 
@@ -360,17 +356,17 @@ impl MontgomeryCurve {
         }
 
         // Compute Q = phi(P) via Equation 17 from Costello & Hisil
-        q.x = (&p.x).mulm((&q.x).sqm(&P), &P);
-        q.z = (&p.z).mulm((&q.z).sqm(&P), &P);
+        q.x = (&p.x).mulm((&q.x).mulm(&q.x, &P), &P);
+        q.z = (&p.z).mulm((&q.z).mulm(&q.z, &P), &P);
 
         // square the polynomial
         c[1] = (&c[0]).mulm(&c[1], &P);
         c[1] = (&c[1]).addm(&c[1], &P);
-        c[0] = (&c[0]).sqm(&P);
+        c[0] = (&c[0]).mulm(&c[0], &P);
 
         c[2] = (&c[3]).mulm(&c[2], &P);
         c[2] = (&c[2]).addm(&c[2], &P);
-        c[3] = (&c[3]).sqm(&P);
+        c[3] = (&c[3]).mulm(&c[3], &P);
 
         // Codomain coefficient formula from Castryck et al.
         // A'.x = A.x*c[0]*c[ell-1] - A.z*3*(c[0]*c[ell-2] - c[1]*c[ell-1])
@@ -382,7 +378,7 @@ impl MontgomeryCurve {
         let b3 = (&b3).addm(&b, &P); //b3 = b + b + b = 3b
 
         let ax = a.subm(b3, &P);
-        let az = (&self.a.z).mulm((&c[3]).sqm(&P), &P);
+        let az = (&self.a.z).mulm((&c[3]).mulm(&c[3], &P), &P);
 
         let codomain = MontgomeryCurve::projective(ax, az);
 
