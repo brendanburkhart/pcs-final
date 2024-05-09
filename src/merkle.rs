@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crypto_bigint::{rand_core::RngCore, Encoding};
-use hex::encode;
 use rand::thread_rng;
 use sha3::digest::{ExtendableOutput, Update};
 
@@ -203,7 +202,7 @@ impl ClassGroupMerkleProof {
         merkle_key: &HashType,
         root: &HashType,
         leaf_hashes: &[(u32, HashType)],
-    ) -> Result<String, VerificationFailed> {
+    ) -> Result<(), VerificationFailed> {
         let mut level: VecDeque<(u32, HashType)> = VecDeque::from(leaf_hashes.to_vec());
         let mut tree: HashMap<u32, HashType> = HashMap::new();
         for (lab, hash) in &self.proof {
@@ -253,7 +252,7 @@ impl ClassGroupMerkleProof {
         }
         let putative_root = tree.get(&1).unwrap();
         if putative_root == root {
-            Ok(encode(putative_root))
+            Ok(())
         } else {
             Err(VerificationFailed)
         }
@@ -336,10 +335,7 @@ mod tests {
             &mt.root(),
             &Vec::from([mt.leaves()[0], mt.leaves()[3]]),
         );
-        match result {
-            Ok(s) => println!("{}", s),
-            Err(e) => println!("{}", e),
-        }
+        result.unwrap();
     }
 
     #[test]

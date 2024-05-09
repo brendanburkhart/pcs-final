@@ -400,17 +400,16 @@ mod tests {
         assert_eq!(signature, desig);
     }
 
-    //#[test]
+    #[test]
     fn sig_len() {
-        let mut msg = [0u8; 1024];
+        let mut msg = [0u8; 128];
         thread_rng().fill_bytes(&mut msg);
-        let j = KeyPair::<256, 7>::generate();
-        let mean_length = (0..1000)
+        let j = KeyPair::<1024, 7>::generate();
+        let mean_length = (0..20)
+            .into_par_iter()
             .map(|_| j.sign(&msg).serialize().len())
-            .reduce(|a, b| a + b)
-            .unwrap()
-            / 1000;
-        println!("Signature Size (256 curves, 7 rounds): {}", mean_length);
+            .reduce(|| 0, |a, b| a + b) / 20;
+        println!("Signature Size (256 curves, 13 rounds): {}", mean_length);
     }
 
     #[test]
