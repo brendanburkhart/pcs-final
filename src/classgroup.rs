@@ -1,154 +1,229 @@
-use lazy_static::lazy_static;
-use num_bigint::{BigUint, RandBigInt};
-use num_modular::ModularCoreOps;
-use num_traits::{One, Zero};
+use crypto_bigint::{Encoding, Random, U320, U512};
+use rand::{thread_rng, Rng};
+use rug::float::Round;
+use rug::integer::Order;
+use rug::Integer;
 
+use crate::constants::{
+    ModClassGroup, ModP, BASIS, NUM_PRIMES, ORTHO_NORMS, POOL, PRIMES, PRIMES16,
+};
+use crate::lattice::{add_slice, dlw_reduce, dot, l1};
 use crate::montgomery::{MontgomeryCurve, Point};
 
-// class group structure for the CSIDH-512 class group,
-// data from CSI-FiSH: https://eprint.iacr.org/2019/498
-
-pub const PRIMES: [u16; 74] = [
-    3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
-    101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
-    197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307,
-    311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 587,
-];
-
-lazy_static! {
-    // p = 4 * prod(PRIMES) - 1
-    pub static ref P: BigUint = (BigUint::from(0x1b81b90533c6c87bu64) * BigUint::from(2u32).pow(0 * 64)) +
-    (BigUint::from(0xc2721bf457aca835u64) * BigUint::from(2u32).pow(1 * 64)) +
-    (BigUint::from(0x516730cc1f0b4f25u64) * BigUint::from(2u32).pow(2 * 64)) +
-    (BigUint::from(0xa7aac6c567f35507u64) * BigUint::from(2u32).pow(3 * 64)) +
-    (BigUint::from(0x5afbfcc69322c9cdu64) * BigUint::from(2u32).pow(4 * 64)) +
-    (BigUint::from(0xb42d083aedc88c42u64) * BigUint::from(2u32).pow(5 * 64)) +
-    (BigUint::from(0xfc8ab0d15e3e4c4au64) * BigUint::from(2u32).pow(6 * 64)) +
-    (BigUint::from(0x65b48e8f740f89bfu64) * BigUint::from(2u32).pow(7 * 64));
-
-    pub static ref BASE_CURVE: MontgomeryCurve = MontgomeryCurve::new(BigUint::zero());
-
-    // length of Hasse-interval = 2 * 2*sqrt(p)
-    pub static ref HASSE_INTERVAL: BigUint = BigUint::from(0x17895e71e1a20b3fu64) * BigUint::from(2u32).pow(0 * 64) +
-                                             BigUint::from(0x38d0cd95f8636a56u64) * BigUint::from(2u32).pow(1 * 64) +
-                                             BigUint::from(0x142b9541e59682cdu64) * BigUint::from(2u32).pow(2 * 64) +
-                                             BigUint::from(0x856f1399d91d6592u64) * BigUint::from(2u32).pow(3 * 64) +
-                                             BigUint::from(0x02u64) * BigUint::from(2u32).pow(4 * 64);
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClassGroupElement {
-    pub value: BigUint,
+    pub value: ModClassGroup,
 }
 
 impl ClassGroupElement {
-    pub fn sample() -> ClassGroupElement {
-        return ClassGroupElement {
-            value: rand::thread_rng().gen_biguint_below(&P),
-        };
+    pub fn new(v: ModClassGroup) -> ClassGroupElement {
+        ClassGroupElement { value: v }
     }
 
-    // TODO
+    pub fn sample() -> ClassGroupElement {
+        ClassGroupElement {
+            value: ModClassGroup::random(&mut thread_rng()),
+        }
+    }
+
     pub fn reduce(&self) -> ReducedClassGroupElement {
-        return ReducedClassGroupElement::new([0i8; PRIMES.len()]);
+        let pool_size = 7500usize;
+        let mut b: [Integer; NUM_PRIMES] = [Integer::ZERO; 74];
+        let p_mp: Integer = Integer::from_digits(
+            &self.value.retrieve().as_limbs().map(|x| x.0.to_le()),
+            Order::LsfLe,
+        );
+        b[0].clone_from(&p_mp);
+        for basis_idx in (0..NUM_PRIMES).rev() {
+            let (c, _) = (dot(&b, basis_idx) / &ORTHO_NORMS[basis_idx])
+                .to_integer_round(Round::Nearest)
+                .unwrap();
+            let slice = &BASIS[basis_idx * NUM_PRIMES..(basis_idx + 1) * NUM_PRIMES];
+            for dim_idx in 0..b.len() {
+                b[dim_idx] -= &c * slice[dim_idx];
+            }
+        }
+        let mut e_prime = dlw_reduce(b.map(|x| x.to_i8().unwrap()), pool_size);
+        let mut best_len = l1(&e_prime);
+
+        for _ in 0..2 {
+            let shifted = {
+                let ridx = thread_rng().gen_range(0..10000);
+                let ridx2 = thread_rng().gen_range(0..10000);
+                add_slice(
+                    &add_slice(
+                        &e_prime,
+                        POOL[ridx * NUM_PRIMES..ridx * NUM_PRIMES + NUM_PRIMES]
+                            .try_into()
+                            .unwrap(),
+                    ),
+                    POOL[ridx2 * NUM_PRIMES..ridx2 * NUM_PRIMES + NUM_PRIMES]
+                        .try_into()
+                        .unwrap(),
+                )
+            };
+            let t = dlw_reduce(shifted, pool_size);
+            let norm_t = l1(&t);
+            if norm_t < best_len {
+                best_len = norm_t;
+                e_prime = t;
+            }
+        }
+        ReducedClassGroupElement::new(e_prime)
+    }
+
+    pub fn reduce_get_exp(&self) -> [i8; 74] {
+        let pool_size = 10000usize;
+        let mut b: [Integer; NUM_PRIMES] = [Integer::ZERO; 74];
+        let p_mp: Integer = Integer::from_digits(
+            &self.value.retrieve().as_limbs().map(|x| x.0.to_le()),
+            Order::LsfLe,
+        );
+        b[0].clone_from(&p_mp);
+        for basis_idx in (0..NUM_PRIMES).rev() {
+            let (c, _) = (dot(&b, basis_idx) / &ORTHO_NORMS[basis_idx])
+                .to_integer_round(Round::Nearest)
+                .unwrap();
+            let slice = &BASIS[basis_idx * NUM_PRIMES..(basis_idx + 1) * NUM_PRIMES];
+            for dim_idx in 0..b.len() {
+                b[dim_idx] -= &c * slice[dim_idx];
+            }
+        }
+        let mut e_prime = dlw_reduce(b.map(|x| x.to_i8().unwrap()), pool_size);
+        let mut best_len = l1(&e_prime);
+
+        for _ in 0..2 {
+            let shifted = {
+                let ridx = thread_rng().gen_range(0..10000);
+                let ridx2 = thread_rng().gen_range(0..10000);
+                add_slice(
+                    &add_slice(
+                        &e_prime,
+                        POOL[ridx * NUM_PRIMES..ridx * NUM_PRIMES + NUM_PRIMES]
+                            .try_into()
+                            .unwrap(),
+                    ),
+                    POOL[ridx2 * NUM_PRIMES..ridx2 * NUM_PRIMES + NUM_PRIMES]
+                        .try_into()
+                        .unwrap(),
+                )
+            };
+            let t = dlw_reduce(shifted, pool_size);
+            let norm_t = l1(&t);
+            if norm_t < best_len {
+                best_len = norm_t;
+                e_prime = t;
+            }
+        }
+        e_prime
+    }
+
+    pub fn to_bytes(&self) -> [u8; 40] {
+        self.value.retrieve().to_be_bytes()
+    }
+
+    pub fn from_be_slice(a: &[u8]) -> ClassGroupElement {
+        ClassGroupElement {
+            value: ModClassGroup::new(&U320::from_be_slice(a)),
+        }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReducedClassGroupElement {
     // exponent for each ideal, separated into positive/negative exponents
     // exponents[0][i] is positive exponent for ideal i
-    exponents: [[u8; PRIMES.len()]; 2],
-
+    exponents: [[u8; NUM_PRIMES]; 2],
     // (p+1)/k, where k is product of primes which have non-zero exponent
     // in the corresponding positive/negative_exponents
-    kernel_order_factor: [BigUint; 2],
+    kernel_order_factor: [ModP; 2],
 }
 
 impl ReducedClassGroupElement {
-    pub fn new(exponents: [i8; PRIMES.len()]) -> ReducedClassGroupElement {
-        let mut positive_exponents = [0u8; PRIMES.len()];
-        let mut negative_exponents = [0u8; PRIMES.len()];
+    pub fn new(exponents: [i8; NUM_PRIMES]) -> ReducedClassGroupElement {
+        let mut positive_exponents = [0u8; NUM_PRIMES];
+        let mut negative_exponents = [0u8; NUM_PRIMES];
+        const FOUR: U512 = U512::from_u16(4u16);
+        let mut positive_order = ModP::new(&FOUR);
+        let mut negative_order = ModP::new(&FOUR);
 
-        let mut positive_order = BigUint::from(4u32);
-        let mut negative_order = BigUint::from(4u32);
+        for idx in 0..exponents.len() {
+            assert!(idx < PRIMES.len());
+            assert!(idx < positive_exponents.len());
+            assert!(idx < negative_exponents.len());
 
-        for idx in 0..PRIMES.len() {
-            let prime = BigUint::from(PRIMES[idx]);
-            if exponents[idx] > 0 {
-                positive_exponents[idx] = exponents[idx] as u8;
-                negative_exponents[idx] = 0u8;
-                negative_order = negative_order.mulm(&prime, &P);
-            } else if exponents[idx] < 0 {
-                positive_exponents[idx] = 0u8;
-                negative_exponents[idx] = (-exponents[idx]) as u8;
-                positive_order = positive_order.mulm(&prime, &P);
-            } else {
-                positive_exponents[idx] = 0u8;
-                negative_exponents[idx] = 0u8;
-                positive_order = positive_order.mulm(&prime, &P);
-                negative_order = negative_order.mulm(&prime, &P);
+            let prime = PRIMES[idx];
+            match exponents[idx] {
+                d if d > 0 => {
+                    positive_exponents[idx] = exponents[idx] as u8;
+                    negative_exponents[idx] = 0u8;
+                    negative_order *= prime;
+                }
+                d if d < 0 => {
+                    positive_exponents[idx] = 0u8;
+                    negative_exponents[idx] = (-exponents[idx]) as u8;
+                    positive_order *= prime;
+                }
+                _ => {
+                    positive_exponents[idx] = 0u8;
+                    negative_exponents[idx] = 0u8;
+                    positive_order *= prime;
+                    negative_order *= prime;
+                }
             }
         }
 
-        return ReducedClassGroupElement {
+        ReducedClassGroupElement {
             exponents: [positive_exponents, negative_exponents],
             kernel_order_factor: [positive_order, negative_order],
-        };
+        }
     }
 
+    //TODO: CONSTANT TIME? SEE https://eprint.iacr.org/2018/1198.pdf.
     pub fn act_on(&self, e: &MontgomeryCurve) -> MontgomeryCurve {
-        let mut exponents = self.exponents.clone();
-        let mut kernel_order_factor = self.kernel_order_factor.clone();
+        let mut exponents = self.exponents;
+        let mut kernel_order_factor = self.kernel_order_factor;
         let mut done: [bool; 2] = [false, false];
 
-        assert!(e.a.z.is_one());
-        let mut e = MontgomeryCurve::new(e.a.x.clone());
+        assert_eq!(e.a.z, ModP::ONE);
+        let mut e = MontgomeryCurve::new(e.a.x);
 
         while !done[0] || !done[1] {
             let p = Point::random();
-            let sign: usize = if e.on_curve(&p) { 0 } else { 1 };
-
+            //any point is on a curve or its twist
+            let sign: usize = 1 - e.on_curve(&p) as usize;
             if done[sign] {
                 continue;
             }
-
             // q = [(p+1)/k]p
             let mut q = e.mult(&p, &kernel_order_factor[sign]);
-
             done[sign] = true;
-            for idx in (0..PRIMES.len()).rev() {
+            for idx in (0..exponents[sign].len()).rev() {
+                assert!(idx < PRIMES.len());
+                assert!(idx < exponents[sign].len());
                 if exponents[sign][idx] == 0 {
                     continue;
                 }
-
-                let ell = PRIMES[idx] as usize;
-
                 // compute k/ell
-                let mut kl = BigUint::one();
+                let mut kl = ModP::ONE;
                 for j in 0..idx {
                     if exponents[sign][j] != 0 {
-                        let prime = BigUint::from(PRIMES[j]);
-                        kl = kl.mulm(prime, &P);
+                        kl *= PRIMES[j];
                     }
                 }
-
                 // k = [k/ell]q = [(p+1)/ell]p
                 let k = e.mult(&q, &kl);
                 // need kernel to have order ell, skip if not
-                if k.is_zero() {
+                if bool::from(k.is_zero()) {
                     done[sign] &= exponents[sign][idx] == 0;
                     continue;
                 }
-
                 // compute isogeny corresponding to action of one ideal
-                (q, e) = e.isogeny(&k, ell, &q);
-
+                (q, e) = e.isogeny(&k, PRIMES16[idx] as usize, &q);
                 // reduce exponent for that ideal, if it is zero we add it to common kernel order
                 exponents[sign][idx] -= 1;
                 if exponents[sign][idx] == 0 {
-                    let ell = BigUint::from(ell);
-                    kernel_order_factor[sign] = (&kernel_order_factor[sign]).mulm(ell, &P);
+                    kernel_order_factor[sign] *= PRIMES[idx];
                 } else {
                     done[sign] = false;
                 }
@@ -164,38 +239,42 @@ impl ReducedClassGroupElement {
 // Test ReducedCLassGroupElement
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use sha3::digest::core_api::CoreProxy;
-
     use super::*;
-
+    use crate::constants::BASE_CURVE;
+    
     #[test]
     fn act_on() {
-        let e = MontgomeryCurve::new(BigUint::zero());
-
-        let exp: [i8; PRIMES.len()] = [-5, 2, 0, -3, 4, -4, -5, 3, 5, -1, -2, -4, 0, -2, -3, 3, 1, -2, 5, 3, 4, 3, -4, 2, 2, 3, -1, 0, 1, -3, 0, 1, -5, -2, 0, 2, 0, 0, -5, 5, 4, 5, 0, -5, 0, -1, 0, 1, 5, 1, 1, -3, 0, 5, 1, 2, -1, 1, -5, 0, 1, 5, 3, 2, -1, -5, 4, 2, 1, 2, -2, 0, 1, 5];
+        let e = MontgomeryCurve::new(ModP::ZERO);
+        let exp: [i8; NUM_PRIMES] = [
+            -5, 2, 0, -3, 4, -4, -5, 3, 5, -1, -2, -4, 0, -2, -3, 3, 1, -2, 5, 3, 4, 3, -4, 2, 2,
+            3, -1, 0, 1, -3, 0, 1, -5, -2, 0, 2, 0, 0, -5, 5, 4, 5, 0, -5, 0, -1, 0, 1, 5, 1, 1,
+            -3, 0, 5, 1, 2, -1, 1, -5, 0, 1, 5, 3, 2, -1, -5, 4, 2, 1, 2, -2, 0, 1, 5,
+        ];
 
         let g1 = ReducedClassGroupElement::new(exp);
         let b = g1.act_on(&e);
 
-        let correct1 = BigUint::from_str("2369783717237495611979301873784587263452377304093138963788722599679539491451202199649554417336783264170944788809733323781398987848062812298930717909418368").unwrap();
+        let correct1 = ModP::new(&U512::from_be_hex("2D3F42F31F984ACE1F45E62D35F7C9936BA51863A204A7AF9562DF7822E01323EAECAB2D86BBA42CB9B1DAA7DAA565800BD5BF35A0297218E8CBDB0399618180"));
 
         assert_eq!(b.normalize().a.x, correct1);
 
-        let exp: [i8; PRIMES.len()] = [1, -2, 5, 1, 2, 4, -1, 0, -2, -1, 2, 5, -3, 3, 3, -1, -2, -1, 0, -5, -1, -1, -5, 4, 2, -1, -1, -5, -4, -3, 4, 1, 4, -2, 4, -5, 3, -1, 1, 2, 0, 4, 1, -5, 4, 1, 4, -1, 0, -5, 3, -2, -3, 0, -1, 4, 3, -2, -5, -5, 4, 3, 2, 1, -2, 3, 3, -2, -3, -5, 5, 3, -5, 2];
+        let exp: [i8; NUM_PRIMES] = [
+            1, -2, 5, 1, 2, 4, -1, 0, -2, -1, 2, 5, -3, 3, 3, -1, -2, -1, 0, -5, -1, -1, -5, 4, 2,
+            -1, -1, -5, -4, -3, 4, 1, 4, -2, 4, -5, 3, -1, 1, 2, 0, 4, 1, -5, 4, 1, 4, -1, 0, -5,
+            3, -2, -3, 0, -1, 4, 3, -2, -5, -5, 4, 3, 2, 1, -2, 3, 3, -2, -3, -5, 5, 3, -5, 2,
+        ];
 
         let g2 = ReducedClassGroupElement::new(exp);
         let b = g2.act_on(&e);
 
-        let correct2 = BigUint::from_str("519446251179368208408483229789219744648346503395090107025372993121474090347141973291186283710582000417720250680500039355089180430360119430964937843828373").unwrap();
+        let correct2 = ModP::new(&U512::from_be_hex("09EB001955B4E84ECFFE86806E0C8313800D0475CFF3519FAF30DC5F3A060E97AE258051DABED0245406DF3BD41B4A03F3C7756C2DE8DE4AD28AC8CD8D506695"));
 
         assert_eq!(b.normalize().a.x, correct2);
 
         let e1 = MontgomeryCurve::new(correct1);
         let c = g2.act_on(&e1);
 
-        let correct3 = BigUint::from_str("2285628850849164625571393133696472708332361107883389592548326297859453099536834098169003372179749949769887257494210901352194177027170150449257705589584294").unwrap();
+        let correct3 = ModP::new(&U512::from_be_hex("2BA3EBCD76B29349F525D3B73BA841065926870C3A1F23902EF53652D880BCF6E8D2705B2F94E23551BBFE9F4FD9A4DA1EADF24EA62DC2A7F425A8EB901E31A6"));
 
         assert_eq!(c.normalize().a.x, correct3);
 
@@ -203,19 +282,66 @@ mod tests {
         let c = g1.act_on(&e2);
         assert_eq!(c.normalize().a.x, correct3);
 
-        let a = BigUint::from_str("4959735746944445429437167063372787866221260859298686717034957233168920087384110868789056610865328902674826851391106090304366031309421559147593361324331782").unwrap();
+        let a = ModP::new(&U512::from_be_hex("5EB2AEEF49060ED93CC067CC83EDDA45D2494F1CF0EB19F41DA034D00A61CBFDFE7C05C0E2730E14EE51B1C0DD5F10CD4958FB9567E9125410860FADDE6D5306"));
         let e3 = MontgomeryCurve::new(a);
-        let exp: [i8; PRIMES.len()] = [
-            -5, 2, -5, -1, -4, -3, 5, 4, -2, 5, 3, -4, 4, 4, 5, 5, -5, -1, -2, -1, 2, -3, 1, -5, -2, 5, 5, 5, -2, 2, 3, 4, 2, -5, 4, 2, 1, 4, -3, 1, -3, 0, 5, 4, -4, 0, 0, -3, 1, 3, 0, -1, -4, -4, -5, -4, -5, 3, -3, 0, -4, 2, -1, 4, 5, 0, -3, 3, -4, -1, -2, -2, 2, -5
-       ];
-       let g = ReducedClassGroupElement::new(exp);
-       let b = g.act_on(&e3);
+        let exp: [i8; NUM_PRIMES] = [
+            -5, 2, -5, -1, -4, -3, 5, 4, -2, 5, 3, -4, 4, 4, 5, 5, -5, -1, -2, -1, 2, -3, 1, -5,
+            -2, 5, 5, 5, -2, 2, 3, 4, 2, -5, 4, 2, 1, 4, -3, 1, -3, 0, 5, 4, -4, 0, 0, -3, 1, 3, 0,
+            -1, -4, -4, -5, -4, -5, 3, -3, 0, -4, 2, -1, 4, 5, 0, -3, 3, -4, -1, -2, -2, 2, -5,
+        ];
 
-       let correct = BigUint::from_str("1901020642689517378383562530566654825675635738058812160599579539988231749004280847525732806286957784867696001219607874569066119129809664916689905063665099").unwrap();
-       assert_eq!(correct, b.normalize().a.x);
+        let g = ReducedClassGroupElement::new(exp);
+        let b = g.act_on(&e3);
 
-       let b = g.act_on(&e);
-       let correct = BigUint::from_str("161155762622134743756219226521144378586403701443189697279645241145897980207434329778060118292207019642201946026095259577408887611036821226090547555208862").unwrap();
-       assert_eq!(correct, b.normalize().a.x);
+        let correct = ModP::new(&U512::from_be_hex("244BFECEC58AB059E806D5E001BFA1230F5FD3735C2D78EA8F901E4C3FDE881D2FBE39781C948436C538EFA0E2C54B650E390D2B519BD6A3BA6026AFCC819DCB"));
+        assert_eq!(correct, b.normalize().a.x);
+
+        let b = g.act_on(&e);
+        let correct = ModP::new(&U512::from_be_hex("0313B6847C6679D3E73A9DD53E2C48E7E1279BE4749D519B2CC13FF5F7D8B235944A1994761C0DFD8306A899567D1DE98ECE0F2431C907EAC61CD5E1F34E0E9E"));
+        assert_eq!(correct, b.normalize().a.x);
+    }
+
+    #[test]
+    fn reduce_basic() {
+        let e = MontgomeryCurve::new(ModP::ZERO);
+        let action1 =
+            ClassGroupElement::new(ModClassGroup::new(&U320::from(8792348923892u64))).reduce();
+        let e = action1.act_on(&e);
+        let action2 =
+            ClassGroupElement::new(ModClassGroup::new(&U320::from(8438348348348u64))).reduce();
+        let res1 = action2.act_on(&e);
+
+        let e = MontgomeryCurve::new(ModP::ZERO);
+        let action3 =
+            ClassGroupElement::new(ModClassGroup::new(&U320::from(17230697272240u64))).reduce();
+        let res2 = action3.act_on(&e);
+        assert_eq!(res1, res2);
+    }
+
+    #[test]
+    fn reduce() {
+        let test = ModClassGroup::new(&U320::from_be_hex(
+            "0000000000000000C4FD5F914373FF3AAA5B084A20DC5230D0A53604E44E0C01CF85E801AEE7BD71",
+        ));
+        let reduced = ClassGroupElement::new(test).reduce_get_exp();
+        let correct = [
+            -4, 1, 0, 2, 5, 0, 1, -5, 4, -1, 3, 2, 8, -1, 3, -4, 0, -13, -7, 5, 2, -1, 0, 1, 3, -4,
+            11, 2, -7, -5, 0, 10, -2, 3, 3, -2, 5, -8, 0, 7, 5, 0, -1, -1, 3, -4, 0, -4, 0, -1, 4,
+            0, 4, 1, 2, -2, 4, 1, 0, -4, 0, 1, 2, 8, 0, -3, 0, 0, -3, 0, 0, -2, -1, 3,
+        ];
+        println!("{} {}", l1(&reduced), l1(&correct));
+        assert_eq!(ReducedClassGroupElement::new(reduced).act_on(&BASE_CURVE), ReducedClassGroupElement::new(correct).act_on(&BASE_CURVE));
+        let test = ModClassGroup::new(&U320::from_be_hex(
+            "0000000000000000D1600A146193CEC7FDC14F739B7D48579B84E1FC56E4884438DBD16D723E105A",
+        ));
+        let reduced = ClassGroupElement::new(test).reduce_get_exp();
+        let correct = [
+            5, 1, -1, -1, 0, 4, -2, 1, 1, 3, 0, 0, -11, 1, -2, 2, 0, -1, -3, 0, -10, 0, -5, -2, -6,
+            1, 1, 6, 1, 0, -7, 3, 2, 3, 7, -3, -12, -3, 1, 0, -2, 2, -4, 2, 3, 8, -6, -2, 2, 4, 0,
+            1, -4, 4, 6, 6, -1, -1, 8, 0, -1, 3, -1, 3, 8, 2, 7, 2, 0, -1, -5, 3, -2, -3,
+        ];
+        println!("{} {}", l1(&reduced), l1(&correct));
+        assert_eq!(ReducedClassGroupElement::new(reduced).act_on(&BASE_CURVE), ReducedClassGroupElement::new(correct).act_on(&BASE_CURVE));
+        
     }
 }
