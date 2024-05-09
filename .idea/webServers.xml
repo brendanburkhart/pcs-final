@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="ca81dc15-1dbd-435b-b84f-2bc67e1dc75d" name="melodrama">
+        <fileTransfer accessType="SFTP" host="melodrama" port="22" sshConfigId="8314cbd4-f86b-4e0f-a600-430e0c151b13" sshConfig="vchari@melodrama:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

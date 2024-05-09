@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="RemoteTargetsManager">
+    <targets>
+      <target name="vchari@melodrama:22" type="ssh/sftp" uuid="0ecdad5f-9d65-4bbd-b003-44029a09961a">
+        <config>
+          <option name="projectRootOnTarget" value="/home/vchari/csifish" />
+          <option name="serverName" value="vchari@melodrama:22 key" />
+          <option name="useRsync" value="true" />
+        </config>
+        <ContributedStateBase type="RsLanguageRuntime">
+          <config>
+            <option name="cargoPath" value="/home/vchari/.cargo/bin/cargo" />
+            <option name="rustcPath" value="/home/vchari/.cargo/bin/rustc" />
+          </config>
+        </ContributedStateBase>
+      </target>
+    </targets>
+  </component>
+</project>
