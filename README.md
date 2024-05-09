@@ -24,4 +24,6 @@ Assuming the standard release target has been built, the command-line interface 
 ./target/release/pcs_final --verify <file to verify> <signature file> <public key file>
 ```
 
+The command-line program uses fixed security parameters, corresponding to S = 2^8 and t = 13 in the CSI-FiSH recommended parameters. The provided library API allows custom security parameters.
+
 The included statistical performance benchmarks can be run via `cargo bench`.
