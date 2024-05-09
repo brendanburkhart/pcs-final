@@ -174,6 +174,7 @@ impl<const CURVES: usize, const ROUNDS: usize> KeyPair<CURVES, ROUNDS> {
         for curve in &ephemeral_curves {
             hasher.update(&curve.to_bytes().unwrap());
         }
+
         hasher.update(message);
         let mut reader = hasher.finalize_xof();
         let mut challenges: Vec<u8> = Vec::new();
@@ -369,6 +370,15 @@ impl Signature {
             .chunks_exact(64)
             .map(MontgomeryCurve::from_be_slice)
             .collect();
+
+        // Validate public key curves
+        for curve in &deserialized_curves {
+            let valid = curve.is_nonsingular() && curve.is_supersingular();
+            if !valid {
+                return Err(DeserializationError);
+            }
+        }
+
         Ok(Signature {
             num_curves,
             challenges: deserialized_challenge,

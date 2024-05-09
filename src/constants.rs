@@ -2,7 +2,7 @@ use std::error::Error;
 use std::fmt;
 
 use crypto_bigint::modular::constant_mod::{Residue, ResidueParams};
-use crypto_bigint::{impl_modulus, U320, U512};
+use crypto_bigint::{impl_modulus, U256, U320, U512};
 use lazy_static::lazy_static;
 use rug::integer::Order;
 use rug::{Float, Integer};
@@ -23,6 +23,8 @@ impl_modulus!(
     "000000000000000233002CB20D405A4F0C6DBD5A6A941DF1DF68A8029B289F124291AA03CD95356F"
 );
 // pub(crate) const CLASS_GROUP_ORDER: NonZero<U320> = NonZero::from_uint(ModulusClassGroup::MODULUS);
+
+const P_SQRT: U256 = ModulusP::MODULUS.sqrt_vartime().split().1;
 
 pub type ModClassGroup = Residue<ModulusClassGroup, { ModulusClassGroup::LIMBS }>;
 
@@ -52,6 +54,8 @@ pub const POOL: &[i8; NUM_PRIMES * 10000] = unsafe {
 pub const BASE_CURVE: MontgomeryCurve = MontgomeryCurve::new(ModP::ZERO);
 
 lazy_static! {
+    pub static ref HASSE_INTERVAL: U512 = U256::from_u8(4u8) * P_SQRT;
+
     pub static ref P_GMP: Integer = Integer::from_digits(
         &ModulusP::MODULUS.as_limbs().map(|x| x.0.to_le()),
         Order::LsfLe

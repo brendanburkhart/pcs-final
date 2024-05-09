@@ -14,6 +14,9 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 
+const CURVES: usize = 256;
+const ROUNDS: usize = 13;
+
 fn main() {
     // Get command-line arguments
     let args: Vec<String> = env::args().collect();
@@ -40,7 +43,7 @@ fn main() {
             }
             let pk_path = &args[2];
             let sk_path = &args[3];
-            let keys = KeyPair::<256, 7>::generate();
+            let keys = KeyPair::<CURVES, ROUNDS>::generate();
             let mut pk_file = File::create(pk_path).expect("Couldn't create public key file");
             let mut sk_file = File::create(sk_path).expect("Couldn't create secret key file");
             pk_file
@@ -73,7 +76,7 @@ fn main() {
             let mut sig_file = File::create(&sig_path).expect("Couldn't create signature file");
             sig_file
                 .write_all(
-                    &KeyPair::<256, 7>::from_signing_key(sk)
+                    &KeyPair::<CURVES, ROUNDS>::from_signing_key(sk)
                         .sign(&file_bytes)
                         .serialize(),
                 )
