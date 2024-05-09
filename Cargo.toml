@@ -16,3 +16,8 @@ crypto-bigint = "0.5.5"
 #uncomment this if you want to build gmp from scratch. It takes an ungodly amount of time on my computer.
 gmp-mpfr-sys = { version = "1.6.2", features=["use-system-libs"]}
 rug = { version = "1.24.1", default-features = false, features = ["float", "integer"]}
+criterion = "0.5.1"
+
+[[bench]]
+name = "benchmark"
+harness = false

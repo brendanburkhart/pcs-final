@@ -41,10 +41,12 @@ fn bench_verify_256_13(c: &mut Criterion) {
     });
 }
 
-criterion_group!(name = benches;    config = Criterion::default();
-        targets = 
-        // bench_keygen_256_13, 
-        bench_sign_256_13, 
+criterion_group!(name = benches;
+    config = Criterion::default();
+
+    targets =
+        bench_keygen_256_13,
+        bench_sign_256_13,
         bench_verify_256_13
 );
 criterion_main!(benches);
